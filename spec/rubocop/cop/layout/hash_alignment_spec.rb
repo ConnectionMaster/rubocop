@@ -1,7 +1,15 @@
 # frozen_string_literal: true
 
 RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
-  let(:cop_config) { { 'EnforcedHashRocketStyle' => 'key', 'EnforcedColonStyle' => 'key' } }
+  let(:config) do
+    RuboCop::Config.new(
+      'Layout/HashAlignment' => default_cop_config.merge(cop_config),
+      'Layout/ArgumentAlignment' => argument_alignment_config
+    )
+  end
+
+  let(:default_cop_config) { { 'EnforcedHashRocketStyle' => 'key', 'EnforcedColonStyle' => 'key' } }
+  let(:argument_alignment_config) { { 'EnforcedStyle' => 'with_first_argument' } }
 
   shared_examples 'not on separate lines' do
     it 'accepts single line hash' do
@@ -108,6 +116,71 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_correction(<<~RUBY)
         yield({a: 0,
                b: 1})
+      RUBY
+    end
+  end
+
+  context 'when `EnforcedStyle: with_fixed_indentation` of `ArgumentAlignment`' do
+    let(:argument_alignment_config) { { 'EnforcedStyle' => 'with_fixed_indentation' } }
+
+    it 'register and corrects an offense' do
+      expect_offense(<<~RUBY)
+        THINGS = {
+          oh: :io,
+            hi: 'neat'
+            ^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+            }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        THINGS = {
+          oh: :io,
+          hi: 'neat'
+            }
+      RUBY
+    end
+
+    it 'registers and corrects an offense when using misaligned keyword arguments' do
+      expect_offense(<<~RUBY)
+        config.fog_credentials_as_kwargs(
+          provider:              'AWS',
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+          aws_access_key_id:     ENV['S3_ACCESS_KEY'],
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+          aws_secret_access_key: ENV['S3_SECRET'],
+          region:                ENV['S3_REGION'],
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+        )
+      RUBY
+
+      expect_correction(<<~RUBY)
+        config.fog_credentials_as_kwargs(
+          provider: 'AWS',
+          aws_access_key_id: ENV['S3_ACCESS_KEY'],
+          aws_secret_access_key: ENV['S3_SECRET'],
+          region: ENV['S3_REGION'],
+        )
+      RUBY
+    end
+
+    it 'does not register an offense using aligned hash literal' do
+      expect_no_offenses(<<~RUBY)
+        {
+          oh: :io,
+          hi: 'neat'
+        }
+      RUBY
+    end
+
+    it 'does not register an offense for an empty hash literal' do
+      expect_no_offenses(<<~RUBY)
+        foo({})
+      RUBY
+    end
+
+    it 'does not register an offense using aligned hash argument for `proc.()`' do
+      expect_no_offenses(<<~RUBY)
+        proc.(key: value)
       RUBY
     end
   end
@@ -511,7 +584,7 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_offense(<<~RUBY)
         Hash(foo: 'bar',
                **extra_params
-               ^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+               ^^^^^^^^^^^^^^ Align keyword splats with the rest of the hash if it spans more than one line.
         )
       RUBY
 
@@ -526,7 +599,7 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_offense(<<~RUBY)
         {foo: 'bar',
                **extra_params
-               ^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+               ^^^^^^^^^^^^^^ Align keyword splats with the rest of the hash if it spans more than one line.
         }
       RUBY
 
@@ -905,7 +978,7 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
     end
 
     it 'registers an offense and corrects misaligned hash values, ' \
-      'prefer table when least offenses' do
+       'prefer table when least offenses' do
       expect_offense(<<~RUBY)
         hash = {
           'abcdefg' => 0,
@@ -1097,5 +1170,145 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
 
   it 'register no offense for yield without args' do
     expect_no_offenses('yield')
+  end
+
+  context 'with `EnforcedColonStyle`: `table`' do
+    let(:cop_config) do
+      {
+        'EnforcedColonStyle' => 'table'
+      }
+    end
+
+    context 'and misaligned keys' do
+      it 'registers an offense and corrects' do
+        expect_offense(<<~RUBY)
+          foo ab: 1,
+              c: 2
+              ^^^^ Align the keys and values of a hash literal if they span more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo ab: 1,
+              c:  2
+        RUBY
+      end
+    end
+
+    context 'when the only item is a kwsplat' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          foo({**rest})
+        RUBY
+      end
+    end
+
+    context 'and a double splat argument after a hash key' do
+      it 'registers an offense on the misaligned key and corrects' do
+        expect_offense(<<~RUBY)
+          foo ab: 1,
+              c: 2, **rest
+              ^^^^ Align the keys and values of a hash literal if they span more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo ab: 1,
+              c:  2, **rest
+        RUBY
+      end
+    end
+
+    context 'and aligned keys but a double splat argument after' do
+      it 'does not register an offense on the `kwsplat`' do
+        expect_no_offenses(<<~RUBY)
+          foo a: 1,
+              b: 2, **rest
+        RUBY
+      end
+    end
+
+    context 'and a misaligned double splat argument' do
+      it 'registers an offense and corrects' do
+        expect_offense(<<~RUBY)
+          foo a: 1,
+                **rest
+                ^^^^^^ Align keyword splats with the rest of the hash if it spans more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo a: 1,
+              **rest
+        RUBY
+      end
+    end
+  end
+
+  context 'with `EnforcedHashRocketStyle`: `table`' do
+    let(:cop_config) do
+      {
+        'EnforcedHashRocketStyle' => 'table'
+      }
+    end
+
+    context 'and misaligned keys' do
+      it 'registers an offense and corrects' do
+        expect_offense(<<~RUBY)
+          foo :ab => 1,
+              :c => 2
+              ^^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo :ab => 1,
+              :c  => 2
+        RUBY
+      end
+    end
+
+    context 'when the only item is a kwsplat' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          foo({**rest})
+        RUBY
+      end
+    end
+
+    context 'and a double splat argument after a hash key' do
+      it 'registers an offense on the misaligned key and corrects' do
+        expect_offense(<<~RUBY)
+          foo :ab => 1,
+              :c => 2, **rest
+              ^^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo :ab => 1,
+              :c  => 2, **rest
+        RUBY
+      end
+    end
+
+    context 'and aligned keys but a double splat argument after' do
+      it 'does not register an offense on the `kwsplat`' do
+        expect_no_offenses(<<~RUBY)
+          foo :a => 1,
+              :b => 2, **rest
+        RUBY
+      end
+    end
+
+    context 'and a misaligned double splat argument' do
+      it 'registers an offense and corrects' do
+        expect_offense(<<~RUBY)
+          foo :a => 1,
+                **rest
+                ^^^^^^ Align keyword splats with the rest of the hash if it spans more than one line.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo :a => 1,
+              **rest
+        RUBY
+      end
+    end
   end
 end

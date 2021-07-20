@@ -13,7 +13,7 @@ InternalAffairs/NodeDestructuring:
 # Offense count: 49
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ClassLength:
-  Max: 186
+  Max: 196
 
 # Offense count: 228
 # Configuration parameters: CountComments, CountAsOne, ExcludedMethods, IgnoredMethods.
@@ -68,3 +68,6 @@ RSpec/SubjectStub:
     - 'spec/rubocop/config_spec.rb'
     - 'spec/rubocop/formatter/json_formatter_spec.rb'
     - 'spec/rubocop/formatter/progress_formatter_spec.rb'
+
+Rake/MethodDefinitionInTask:
+  Enabled: false

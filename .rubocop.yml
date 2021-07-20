@@ -5,6 +5,7 @@ require:
   - rubocop/cop/internal_affairs
   - rubocop-performance
   - rubocop-rspec
+  - rubocop-rake
 
 AllCops:
   NewCops: enable
@@ -96,6 +97,14 @@ Metrics/ClassLength:
 Metrics/ModuleLength:
   Exclude:
     - 'spec/**/*.rb'
+
+Naming/InclusiveLanguage:
+  FlaggedTerms:
+    offence:
+      Suggestions:
+        - offense
+  Exclude:
+    - lib/rubocop/cop/naming/inclusive_language.rb
 
 RSpec/FilePath:
   Exclude:

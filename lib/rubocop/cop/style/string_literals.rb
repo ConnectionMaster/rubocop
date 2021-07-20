@@ -29,6 +29,7 @@ module RuboCop
       class StringLiterals < Base
         include ConfigurableEnforcedStyle
         include StringLiteralsHelp
+        include StringHelp
         extend AutoCorrector
 
         MSG_INCONSISTENT = 'Inconsistent quote style.'
@@ -86,10 +87,10 @@ module RuboCop
         def message(_node)
           if style == :single_quotes
             "Prefer single-quoted strings when you don't need string " \
-            'interpolation or special symbols.'
+              'interpolation or special symbols.'
           else
             'Prefer double-quoted strings unless you need single quotes to ' \
-            'avoid extra backslashes for escaping.'
+              'avoid extra backslashes for escaping.'
           end
         end
 

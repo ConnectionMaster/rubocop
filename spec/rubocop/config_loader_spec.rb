@@ -349,23 +349,30 @@ RSpec.describe RuboCop::ConfigLoader do
       let(:file_path) { '.rubocop.yml' }
       let(:message) do
         '.rubocop.yml: Style/For:Exclude overrides the same parameter in ' \
-        '.rubocop_todo.yml'
+          '.rubocop_2.yml'
       end
 
       before do
         create_file(file_path, <<~YAML)
-          inherit_from: .rubocop_todo.yml
+          inherit_from:
+            - .rubocop_1.yml
+            - .rubocop_2.yml
 
           Style/For:
             Exclude:
               - spec/requests/group_invite_spec.rb
         YAML
 
-        create_file('.rubocop_todo.yml', <<~YAML)
+        create_file('.rubocop_1.yml', <<~YAML)
+          Style/StringLiterals:
+            Exclude:
+              - 'spec/models/group_spec.rb'
+        YAML
+
+        create_file('.rubocop_2.yml', <<~YAML)
           Style/For:
             Exclude:
               - 'spec/models/expense_spec.rb'
-              - 'spec/models/group_spec.rb'
         YAML
       end
 
@@ -512,7 +519,7 @@ RSpec.describe RuboCop::ConfigLoader do
       end
 
       it 'unions the two lists of Excludes from the parent and child configs ' \
-          'for cops that do not override the inherit_mode' do
+         'for cops that do not override the inherit_mode' do
         expect do
           excludes = configuration_from_file['Style/For']['Exclude']
           expect(excludes.sort)
@@ -533,11 +540,12 @@ RSpec.describe RuboCop::ConfigLoader do
     context 'when a department is disabled', :restore_registry do
       let(:file_path) { '.rubocop.yml' }
 
-      shared_examples 'resolves enabled/disabled for all cops' do |enabled_by_default, disabled_by_default|
+      shared_examples 'resolves enabled/disabled for all ' \
+                      'cops' do |enabled_by_default, disabled_by_default, custom_dept_to_disable|
         before { stub_cop_class('RuboCop::Cop::Foo::Bar::Baz') }
 
         it "handles EnabledByDefault: #{enabled_by_default}, " \
-           "DisabledByDefault: #{disabled_by_default}" do
+           "DisabledByDefault: #{disabled_by_default} with disabled #{custom_dept_to_disable}" do
           create_file('grandparent_rubocop.yml', <<~YAML)
             Naming/FileName:
               Enabled: pending
@@ -566,7 +574,7 @@ RSpec.describe RuboCop::ConfigLoader do
             Naming:
               Enabled: false
 
-            Foo/Bar:
+            #{custom_dept_to_disable}:
               Enabled: false
           YAML
           create_file(file_path, <<~YAML)
@@ -594,6 +602,15 @@ RSpec.describe RuboCop::ConfigLoader do
 
           def enabled?(cop)
             configuration_from_file.for_cop(cop)['Enabled']
+          end
+
+          if custom_dept_to_disable == 'Foo'
+            message = <<~'OUTPUT'.chomp
+              unrecognized cop or department Foo found in parent_rubocop.yml
+              Foo is not a department. Use `Foo/Bar`.
+            OUTPUT
+            expect { enabled?('Foo/Bar/Baz') }.to raise_error(RuboCop::ValidationError, message)
+            next
           end
 
           # Department disabled in parent config, cop enabled in child.
@@ -634,9 +651,10 @@ RSpec.describe RuboCop::ConfigLoader do
         end
       end
 
-      include_examples 'resolves enabled/disabled for all cops', false, false
-      include_examples 'resolves enabled/disabled for all cops', false, true
-      include_examples 'resolves enabled/disabled for all cops', true, false
+      include_examples 'resolves enabled/disabled for all cops', false, false, 'Foo/Bar'
+      include_examples 'resolves enabled/disabled for all cops', false, true, 'Foo/Bar'
+      include_examples 'resolves enabled/disabled for all cops', true, false, 'Foo/Bar'
+      include_examples 'resolves enabled/disabled for all cops', false, false, 'Foo'
     end
 
     context 'when a third party require defines a new gem', :restore_registry do
@@ -796,9 +814,9 @@ RSpec.describe RuboCop::ConfigLoader do
           expect(configuration_from_file['Metrics/MethodLength']
                    .to_set.superset?(expected.to_set)).to be(true)
         end.to output(Regexp.new(<<~OUTPUT)).to_stdout
-          .rubocop.yml: Metrics/MethodLength:Enabled overrides the same parameter in normal.yml
           .rubocop.yml: Metrics/MethodLength:Enabled overrides the same parameter in special.yml
-          .rubocop.yml: Metrics/MethodLength:Max overrides the same parameter in special.yml
+          .rubocop.yml: Metrics/MethodLength:Enabled overrides the same parameter in normal.yml
+          .rubocop.yml: Metrics/MethodLength:Max overrides the same parameter in normal.yml
         OUTPUT
       end
     end
@@ -1107,7 +1125,7 @@ RSpec.describe RuboCop::ConfigLoader do
         end
 
         it 'enables cops that are explicitly in the config file '\
-          'even if they are disabled by default' do
+           'even if they are disabled by default' do
           cop_class = RuboCop::Cop::Style::Copyright
           expect(cop_enabled?(cop_class)).to be true
         end

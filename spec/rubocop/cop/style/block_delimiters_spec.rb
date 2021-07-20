@@ -354,6 +354,35 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
         RUBY
       end
 
+      it 'registers an offense when there is a comment after the closing brace and block body is not empty' do
+        expect_offense(<<~RUBY)
+          baz.map { |x|
+                  ^ Avoid using `{...}` for multi-line blocks.
+          foo(x) } # comment
+        RUBY
+
+        expect_correction(<<~RUBY)
+          # comment
+          baz.map do |x|
+          foo(x) end
+        RUBY
+      end
+
+      it 'registers an offense when there is a comment after the closing brace and block body is empty' do
+        expect_offense(<<~RUBY)
+          baz.map { |x|
+                  ^ Avoid using `{...}` for multi-line blocks.
+          } # comment
+
+        RUBY
+
+        expect_correction(<<~RUBY)
+          # comment
+          baz.map do |x|
+          end
+        RUBY
+      end
+
       it 'accepts braces if do-end would change the meaning' do
         expect_no_offenses(<<~RUBY)
           scope :foo, lambda { |f|
@@ -604,7 +633,7 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
       expect_no_offenses('each { |x| }')
     end
 
-    it 'registers an offence for a multi-line block with do-end' do
+    it 'registers an offense for a multi-line block with do-end' do
       expect_offense(<<~RUBY)
         each do |x|
              ^^ Prefer `{...}` over `do...end` for blocks.

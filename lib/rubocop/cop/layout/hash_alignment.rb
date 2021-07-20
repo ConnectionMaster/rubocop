@@ -180,12 +180,15 @@ module RuboCop
         include RangeHelp
         extend AutoCorrector
 
-        MESSAGES = { KeyAlignment => 'Align the keys of a hash literal if ' \
-                      'they span more than one line.',
-                     SeparatorAlignment => 'Align the separators of a hash ' \
-                       'literal if they span more than one line.',
-                     TableAlignment => 'Align the keys and values of a hash ' \
-                       'literal if they span more than one line.' }.freeze
+        MESSAGES = {
+          KeyAlignment => 'Align the keys of a hash literal if they span more than one line.',
+          SeparatorAlignment => 'Align the separators of a hash literal if they span more than ' \
+                                'one line.',
+          TableAlignment => 'Align the keys and values of a hash literal if they span more than ' \
+                            'one line.',
+          KeywordSplatAlignment => 'Align keyword splats with the rest of the hash if it spans ' \
+                                   'more than one line.'
+        }.freeze
 
         def on_send(node)
           return if double_splat?(node)
@@ -201,7 +204,7 @@ module RuboCop
         alias on_yield on_send
 
         def on_hash(node)
-          return if enforce_first_argument_with_fixed_indentation? || ignored_node?(node) ||
+          return if autocorrect_incompatible_with_other_cops?(node) || ignored_node?(node) ||
                     node.pairs.empty? || node.single_line?
 
           proc = ->(a) { a.checkable_layout?(node) }
@@ -210,12 +213,18 @@ module RuboCop
           check_pairs(node)
         end
 
-        attr_accessor :offences_by, :column_deltas
+        attr_accessor :offenses_by, :column_deltas
 
         private
 
+        def autocorrect_incompatible_with_other_cops?(node)
+          enforce_first_argument_with_fixed_indentation? &&
+            node.pairs.any? &&
+            node.parent&.call_type? && node.parent.loc.selector&.line == node.pairs.first.loc.line
+        end
+
         def reset!
-          self.offences_by = {}
+          self.offenses_by = {}
           self.column_deltas = Hash.new { |hash, key| hash[key] = {} }
         end
 
@@ -239,26 +248,33 @@ module RuboCop
             end
           end
 
-          add_offences
+          add_offenses
         end
 
-        def add_offences
-          format, offences = offences_by.min_by { |_, v| v.length }
-          (offences || []).each do |offence|
-            add_offense(offence, message: MESSAGES[format]) do |corrector|
-              delta = column_deltas[alignment_for(offence).first.class][offence]
+        def add_offenses
+          kwsplat_offenses = offenses_by.delete(KeywordSplatAlignment)
+          register_offenses_with_format(kwsplat_offenses, KeywordSplatAlignment)
 
-              correct_node(corrector, offence, delta) unless delta.nil?
+          format, offenses = offenses_by.min_by { |_, v| v.length }
+          register_offenses_with_format(offenses, format)
+        end
+
+        def register_offenses_with_format(offenses, format)
+          (offenses || []).each do |offense|
+            add_offense(offense, message: MESSAGES[format]) do |corrector|
+              delta = column_deltas[alignment_for(offense).first.class][offense]
+
+              correct_node(corrector, offense, delta) unless delta.nil?
             end
           end
         end
 
         def check_delta(delta, node:, alignment:)
-          offences_by[alignment.class] ||= []
+          offenses_by[alignment.class] ||= []
           return if good_alignment? delta
 
           column_deltas[alignment.class][node] = delta
-          offences_by[alignment.class].push(node)
+          offenses_by[alignment.class].push(node)
         end
 
         def ignore_hash_argument?(node)
@@ -271,7 +287,9 @@ module RuboCop
         end
 
         def alignment_for(pair)
-          if pair.hash_rocket?
+          if pair.kwsplat_type?
+            [KeywordSplatAlignment.new]
+          elsif pair.hash_rocket?
             alignment_for_hash_rockets
           else
             alignment_for_colons

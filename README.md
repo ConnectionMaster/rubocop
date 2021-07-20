@@ -29,6 +29,8 @@ RuboCop is extremely flexible and most aspects of its behavior can be tweaked vi
 [![OpenCollective](https://opencollective.com/rubocop/sponsors/badge.svg)](#open-collective-sponsors)
 [![Tidelift](https://tidelift.com/badges/package/rubygems/rubocop)](https://tidelift.com/subscription/pkg/rubygems-rubocop?utm_source=rubygems-rubocop&utm_medium=referral&utm_campaign=readme)
 
+Working on RuboCop is often fun, but it also requires a great deal of time and energy.
+
 **Please consider [financially supporting its ongoing development](#funding).**
 
 ## Installation
@@ -52,7 +54,7 @@ To prevent an unwanted RuboCop update you might want to use a conservative versi
 in your `Gemfile`:
 
 ```rb
-gem 'rubocop', '~> 1.14', require: false
+gem 'rubocop', '~> 1.18', require: false
 ```
 
 See [our versioning policy](https://docs.rubocop.org/rubocop/versioning.html) for further details.

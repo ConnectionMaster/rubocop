@@ -84,12 +84,22 @@ module RuboCop
         def compact_definition(corrector, node)
           compact_node(corrector, node)
           remove_end(corrector, node.body)
+          unindent(corrector, node)
         end
 
         def compact_node(corrector, node)
-          replacement = "#{node.body.type} #{compact_identifier_name(node)}"
           range = range_between(node.loc.keyword.begin_pos, node.body.loc.name.end_pos)
-          corrector.replace(range, replacement)
+          corrector.replace(range, compact_replacement(node))
+        end
+
+        def compact_replacement(node)
+          replacement = "#{node.body.type} #{compact_identifier_name(node)}"
+
+          body_comments = processed_source.ast_with_comments[node.body]
+          unless body_comments.empty?
+            replacement = body_comments.map(&:text).push(replacement).join("\n")
+          end
+          replacement
         end
 
         def compact_identifier_name(node)
@@ -103,6 +113,19 @@ module RuboCop
             body.loc.end.end_pos + 1
           )
           corrector.remove(range)
+        end
+
+        def configured_indentation_width
+          config.for_badge(Layout::IndentationWidth.badge).fetch('Width', 2)
+        end
+
+        def unindent(corrector, node)
+          return if node.body.children.last.nil?
+
+          column_delta = configured_indentation_width - leading_spaces(node.body.children.last).size
+          return if column_delta.zero?
+
+          AlignmentCorrector.correct(corrector, processed_source, node, column_delta)
         end
 
         def leading_spaces(node)

@@ -505,6 +505,8 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
                 Enabled: false
               Gemspec:
                 Enabled: false
+              Naming:
+                Enabled: false
 
               Style/SomeCop:
                 Description: Something
@@ -1024,7 +1026,11 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
     shared_examples('prints config') do
       it 'prints the current configuration' do
         out = stdout.lines.to_a
-        printed_config = YAML.load(out.join) # rubocop:disable Security/YAMLLoad
+        printed_config = if defined?(YAML.unsafe_load) # RUBY_VERSION >= '3.1.0'
+                           YAML.unsafe_load(out.join)
+                         else
+                           YAML.load(out.join) # rubocop:disable Security/YAMLLoad
+                         end
         cop_names = (arguments[0] || '').split(',')
         cop_names.each do |cop_name|
           global_conf[cop_name].each do |key, value|
@@ -1800,7 +1806,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
       $stdin = STDIN
     end
 
-    it 'prints offence reports to stderr and corrected code to stdout if --auto-correct-all and --stderr are used' do
+    it 'prints offense reports to stderr and corrected code to stdout if --auto-correct-all and --stderr are used' do
       $stdin = StringIO.new('p $/')
       argv   = ['--auto-correct-all',
                 '--only=Style/SpecialGlobalVars',
